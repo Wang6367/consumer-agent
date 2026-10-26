@@ -5,12 +5,16 @@ let selectedRelax = null;
 const COLORS = ['#2563eb','#7c3aed','#d97706','#059669','#dc2626','#0891b2','#db2777','#65a30d'];
 
 async function api(path, opts = {}) {
-  const res = await fetch('/api/' + path, {
-    method: opts.method || 'GET',
-    headers: { 'Content-Type': 'application/json' },
-    body: opts.body ? JSON.stringify(opts.body) : undefined
-  });
-  return res.json();
+  const body = opts.body || {};
+  if (path === 'health') return AgentAPI.health();
+  if (path.startsWith('memory')) {
+    const uid = path.includes('userId=') ? path.split('userId=')[1] : 'u-001';
+    return AgentAPI.getMemory(uid);
+  }
+  if (path === 'intent') return AgentAPI.parseIntent(body.text, body.userId);
+  if (path === 'execute') return AgentAPI.execute(body.taskId, { relaxOption: body.relaxOption });
+  if (path === 'authorize') return AgentAPI.authorize(body.taskId, { relaxOption: body.relaxOption });
+  return { error: '未知接口: ' + path };
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => '&#' + c.charCodeAt(0) + ';'); }
