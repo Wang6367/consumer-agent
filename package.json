@@ -1,0 +1,13 @@
+{
+  "name": "consumer-agent",
+  "version": "1.0.0",
+  "description": "面向消费任务的委托-执行架构智能体（Commander-Orchestrator-Memory）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "license": "MIT"
+}

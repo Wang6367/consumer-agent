@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>消费智能体 · 委托-执行架构 Demo</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <!-- 顶部架构导航 -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◉</span>
+      <div>
+        <h1>消费智能体</h1>
+        <p class="subtitle">委托-执行架构 · Commander → Orchestrator → Memory</p>
+      </div>
+    </div>
+    <div class="arch-badges">
+      <span class="badge" data-layer="commander">战略层 · 意图拆解</span>
+      <span class="badge" data-layer="orchestrator">执行层 · 工具调度</span>
+      <span class="badge" data-layer="memory">支撑层 · 分层记忆</span>
+    </div>
+    <div class="status-pill" id="serverStatus">连接中…</div>
+  </header>
+
+  <main class="layout">
+    <!-- 左栏：对话入口 + 记忆 -->
+    <aside class="panel left-panel">
+      <section class="card">
+        <h2>消费意图输入</h2>
+        <textarea id="intentInput" rows="3" placeholder="例如：帮我准备下周露营的装备，预算两千以内，别太重"></textarea>
+        <button class="btn primary" id="btnParse" onclick="parseIntent()">拆解意图 →</button>
+        <div class="quick-scenes">
+          <p class="hint">快捷场景：</p>
+          <button class="chip" onclick="fillScene('帮我准备下周露营的装备，预算两千以内，别太重')">🏕 露营装备</button>
+          <button class="chip" onclick="fillScene('为三口之家规划一次周末短途亲子游，预算三千以内')">👨‍👩‍👧 亲子短途游</button>
+          <button class="chip" onclick="fillScene('买一双周末徒步鞋，预算八百以内，周五前到')">🥾 徒步鞋</button>
+        </div>
+      </section>
+
+      <section class="card" id="memoryPanel">
+        <h2>分层记忆体系</h2>
+        <div class="mem-tabs">
+          <button class="mem-tab active" onclick="switchMemTab('facts',this)">事实记忆</button>
+          <button class="mem-tab" onclick="switchMemTab('prefs',this)">偏好记忆</button>
+          <button class="mem-tab" onclick="switchMemTab('episodes',this)">经历记忆</button>
+        </div>
+        <div id="memContent" class="mem-content"><p class="hint">加载中…</p></div>
+      </section>
+    </aside>
+
+    <!-- 中栏：主流程 -->
+    <section class="panel center-panel">
+      <!-- 意图理解 -->
+      <section class="card hidden" id="intentCard">
+        <h2>① 战略层 · 意图拆解结果</h2>
+        <div id="intentBody"></div>
+      </section>
+
+      <!-- 任务图 -->
+      <section class="card hidden" id="graphCard">
+        <h2>② 任务图（DAG）与授权边界</h2>
+        <div id="graphBody"></div>
+      </section>
+
+      <!-- 执行轨迹 -->
+      <section class="card hidden" id="execCard">
+        <h2>③ 执行层 · 调度轨迹</h2>
+        <div id="execBody"></div>
+      </section>
+
+      <!-- 组合结果 -->
+      <section class="card hidden" id="bundleCard">
+        <h2>④ 组合优化结果</h2>
+        <div id="bundleBody"></div>
+      </section>
+
+      <!-- 协商/授权 -->
+      <section class="card hidden" id="actionCard">
+        <div id="actionBody"></div>
+      </section>
+    </section>
+
+    <!-- 右栏：洞察 + 工具轨迹 -->
+    <aside class="panel right-panel">
+      <section class="card" id="insightPanel">
+        <h2>经历洞察</h2>
+        <div id="insightBody"><p class="hint">提交意图后展示</p></div>
+      </section>
+      <section class="card" id="tracePanel">
+        <h2>工具调用轨迹</h2>
+        <div id="traceBody"><p class="hint">执行后展示</p></div>
+      </section>
+    </aside>
+  </main>
+
+  <footer class="footer">
+    <p>委托型消费代理 · 从"推荐增强"到"消费代理权转移" · 所有自主动作可审计回溯</p>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
