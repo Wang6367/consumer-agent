@@ -1,0 +1,14 @@
+{
+  "name": "consumer-agent",
+  "version": "1.1.0",
+  "description": "消费智能体 - 委托-执行架构 Demo(本地 SQLite 数据版)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "init-db": "node server.js --init-only"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "license": "MIT"
+}

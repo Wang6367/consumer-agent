@@ -42,7 +42,7 @@
     return points;
   }
 
-  const coupons = [
+  let coupons = [
     { id: 'cp-1', platform: '京东', scope: '户外运动', amount: 60, threshold: 300, expire: '2026-11-15' },
     { id: 'cp-2', platform: '京东', scope: '全品类', amount: 20, threshold: 100, expire: '2026-11-30' },
     { id: 'cp-3', platform: '天猫', scope: '户外露营', amount: 100, threshold: 500, expire: '2026-11-11' },
@@ -59,7 +59,8 @@
     '12306': { returnDays: 0, exchangeDays: 0, freightInsurance: false, notes: '开车前8天免费退改' }
   };
 
-  const allProducts = [...campingProducts, ...familyTripProducts];
+  // 数据可被本地数据库动态覆盖(见 AgentAPI.loadData);初始值作为离线回退
+  let allProducts = [...campingProducts, ...familyTripProducts];
 
   // __END_BATCH_1__
 
@@ -938,6 +939,38 @@
     getInsights(userId, scene) {
       const memory = new MemoryStore(userId || 'u-001');
       return { insights: memory.getEpisodeInsights({ scene }) };
+    },
+    // ===== 数据库动态数据接口 =====
+    getProducts() {
+      return allProducts.map(p => ({ ...p }));
+    },
+    getCoupons() {
+      return coupons.map(c => ({ ...c }));
+    },
+    loadData(products, newCoupons) {
+      if (Array.isArray(products) && products.length) {
+        allProducts = products.map(p => ({ ...p }));
+      }
+      if (Array.isArray(newCoupons) && newCoupons.length) {
+        coupons = newCoupons.map(c => ({ ...c }));
+      }
+      return {
+        productCount: allProducts.length,
+        couponCount: coupons.length,
+        source: 'local-database'
+      };
+    },
+    updateProduct(id, fields) {
+      const idx = allProducts.findIndex(p => p.id === id);
+      if (idx === -1) return { error: '商品不存在' };
+      const oldPrice = allProducts[idx].price;
+      allProducts[idx] = { ...allProducts[idx], ...fields };
+      const newPrice = allProducts[idx].price;
+      // 价格下调时自动刷新历史低价
+      if (newPrice < oldPrice && (!allProducts[idx].historicalLow || newPrice < allProducts[idx].historicalLow)) {
+        allProducts[idx].historicalLow = newPrice;
+      }
+      return { ok: true, product: { ...allProducts[idx] }, priceChanged: newPrice !== oldPrice, oldPrice, newPrice };
     }
   };
 

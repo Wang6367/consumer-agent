@@ -174,6 +174,29 @@ textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 
 .trace-io { color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trace-ms { color: var(--text3); font-size: 11px; margin-left: auto; }
 
+/* 价格管理面板(本地数据库) */
+#pricePanel h2::before { background: var(--memory); }
+.db-badge { font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 600; margin-left: auto; white-space: nowrap; }
+.db-badge.on { background: var(--success-bg); color: var(--success); border: 1px solid #bbf7d0; }
+.db-badge.off { background: var(--bg); color: var(--text3); border: 1px solid var(--border); }
+.price-toolbar { display: flex; gap: 6px; margin-bottom: 10px; }
+.price-toolbar select { flex: 1; border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; background: var(--card); color: var(--text2); font-family: inherit; }
+.btn.sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; width: auto; margin-top: 0; }
+.price-row { padding: 8px 0; border-bottom: 1px dashed var(--border); }
+.price-row:last-child { border: none; }
+.price-info { display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px; }
+.price-name { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.price-meta { font-size: 11px; color: var(--text3); }
+.price-edit { display: flex; gap: 6px; align-items: center; }
+.price-input { width: 80px; border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 13px; font-weight: 600; color: var(--primary); font-family: inherit; }
+.price-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-bg); }
+.price-history { margin-top: 8px; background: var(--bg); border-radius: 6px; padding: 8px; }
+.hist-item { display: flex; gap: 8px; align-items: center; font-size: 11px; padding: 3px 0; border-bottom: 1px dashed var(--border); }
+.hist-item:last-child { border: none; }
+.hist-time { color: var(--text3); white-space: nowrap; }
+.hist-prices { font-weight: 600; color: var(--warn); white-space: nowrap; }
+.hist-note { color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* 页脚 */
 .footer { text-align: center; padding: 20px; color: var(--text3); font-size: 12px; }
 

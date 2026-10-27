@@ -1,13 +1,13 @@
 {
   "name": "consumer-agent",
-  "version": "1.0.0",
-  "description": "消费智能体 - 意图拆解 / 任务图编排 / 专家路由 / 授权下单",
+  "version": "1.1.0",
+  "description": "消费智能体 - 意图拆解 / 任务图编排 / 专家路由 / 授权下单 / SQLite数据管理",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "engines": {
-    "node": "22"
+    "node": ">=22.5.0"
   },
   "private": true,
   "license": "UNLICENSED"

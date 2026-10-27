@@ -82,8 +82,17 @@
       </section>
     </section>
 
-    <!-- 右栏：洞察 + 工具轨迹 -->
+    <!-- 右栏：价格管理 + 洞察 + 工具轨迹 -->
     <aside class="panel right-panel">
+      <section class="card" id="pricePanel">
+        <h2>价格管理 · 本地数据库 <span id="dbBadge" class="db-badge off">检测中…</span></h2>
+        <div class="price-toolbar">
+          <select id="priceCatFilter" onchange="renderPriceManager()"></select>
+          <button class="btn ghost sm" onclick="refreshDbData()">↻ 刷新</button>
+          <button class="btn ghost sm" onclick="resetDbData()">重置数据</button>
+        </div>
+        <div id="priceBody"><p class="hint">加载中…</p></div>
+      </section>
       <section class="card" id="insightPanel">
         <h2>经历洞察</h2>
         <div id="insightBody"><p class="hint">提交意图后展示</p></div>

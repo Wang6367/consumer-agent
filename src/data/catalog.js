@@ -165,15 +165,6 @@ function genPriceHistory(base, low) {
   return points;
 }
 
-// ============ 优惠券 ============
-const coupons = [
-  { id: 'cp-1', platform: '京东', scope: '户外运动', amount: 60, threshold: 300, expire: '2026-11-15' },
-  { id: 'cp-2', platform: '京东', scope: '全品类', amount: 20, threshold: 100, expire: '2026-11-30' },
-  { id: 'cp-3', platform: '天猫', scope: '户外露营', amount: 100, threshold: 500, expire: '2026-11-11' },
-  { id: 'cp-4', platform: '美团', scope: '酒店民宿', amount: 50, threshold: 400, expire: '2026-11-20' },
-  { id: 'cp-5', platform: '携程', scope: '门票', amount: 30, threshold: 200, expire: '2026-11-25' }
-];
-
 // ============ 售后政策 ============
 const afterSalesPolicies = {
   '京东': { returnDays: 7, exchangeDays: 15, freightInsurance: true, notes: '支持上门取件' },
@@ -184,13 +175,48 @@ const afterSalesPolicies = {
   '12306': { returnDays: 0, exchangeDays: 0, freightInsurance: false, notes: '开车前8天免费退改' }
 };
 
-const allProducts = [...campingProducts, ...familyTripProducts];
+// 数据层改为可变:支持从数据库动态加载与运行时更新
+let allProducts = [...campingProducts, ...familyTripProducts];
+let coupons = [
+  { id: 'cp-1', platform: '京东', scope: '户外运动', amount: 60, threshold: 300, expire: '2026-11-15' },
+  { id: 'cp-2', platform: '京东', scope: '全品类', amount: 20, threshold: 100, expire: '2026-11-30' },
+  { id: 'cp-3', platform: '天猫', scope: '户外露营', amount: 100, threshold: 500, expire: '2026-11-11' },
+  { id: 'cp-4', platform: '美团', scope: '酒店民宿', amount: 50, threshold: 400, expire: '2026-11-20' },
+  { id: 'cp-5', platform: '携程', scope: '门票', amount: 30, threshold: 200, expire: '2026-11-25' }
+];
+
+/**
+ * 从外部(如SQLite数据库)批量加载商品与优惠券,替换内存数据
+ * 与 public/agent-core.js 中 AgentAPI.loadData() 对应
+ */
+function loadData(products, newCoupons) {
+  if (Array.isArray(products)) allProducts = products;
+  if (Array.isArray(newCoupons)) coupons = newCoupons;
+}
+
+/**
+ * 更新单个商品字段(含历史最低价自动刷新)
+ * 与 public/agent-core.js 中 AgentAPI.updateProduct() 对应
+ */
+function updateProduct(id, fields) {
+  const p = allProducts.find(item => item.id === id);
+  if (!p) return null;
+  Object.assign(p, fields);
+  // 新价低于历史最低 → 自动刷新史低
+  if (fields.price !== undefined && fields.price < (p.historicalLow ?? Infinity)) {
+    p.historicalLow = fields.price;
+  }
+  return p;
+}
 
 module.exports = {
   campingProducts,
   familyTripProducts,
-  allProducts,
+  // getter 导出:catalog.allProducts 始终返回最新内存数据,tools.js 无需改动
+  get allProducts() { return allProducts; },
+  get coupons() { return coupons; },
   genPriceHistory,
-  coupons,
-  afterSalesPolicies
+  afterSalesPolicies,
+  loadData,
+  updateProduct
 };

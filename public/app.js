@@ -2,7 +2,20 @@
 let currentTask = null;
 let memoryData = null;
 let selectedRelax = null;
+let dbOnline = false;          // 本地数据库服务器是否在线
+let dbProducts = [];           // 从数据库加载的商品(用于价格管理面板)
 const COLORS = ['#2563eb','#7c3aed','#d97706','#059669','#dc2626','#0891b2','#db2777','#65a30d'];
+
+// 本地数据库 API 请求封装
+async function dbFetch(path, opts = {}) {
+  const res = await fetch(path, {
+    method: opts.method || 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  if (!res.ok) throw new Error(`DB API ${path} → ${res.status}`);
+  return res.json();
+}
 
 async function api(path, opts = {}) {
   const body = opts.body || {};
@@ -30,6 +43,54 @@ async function init() {
   } catch {
     document.getElementById('serverStatus').textContent = '● 连接失败';
   }
+  await detectDbAndLoad();
+}
+
+// ============ 本地数据库探测与数据加载 ============
+async function detectDbAndLoad() {
+  const badge = document.getElementById('dbBadge');
+  try {
+    const health = await dbFetch('/api/health');
+    if (health.status === 'ok') {
+      dbOnline = true;
+      badge.textContent = '● SQLite 已连接';
+      badge.className = 'db-badge on';
+      await refreshDbData(true);
+      return;
+    }
+    throw new Error('health != ok');
+  } catch {
+    dbOnline = false;
+    badge.textContent = '● 离线模式(内置数据)';
+    badge.className = 'db-badge off';
+    // 离线回退:使用 agent-core 内置数据渲染价格管理面板
+    dbProducts = AgentAPI.getProducts();
+    renderPriceManager();
+  }
+}
+
+async function refreshDbData(silent) {
+  if (!dbOnline) { if (!silent) alert('本地数据库未连接,请先启动: node server.js'); return; }
+  try {
+    const [prodRes, cpRes] = await Promise.all([
+      dbFetch('/api/products'),
+      dbFetch('/api/coupons')
+    ]);
+    dbProducts = prodRes.products || [];
+    // 将数据库数据注入 agent-core,后续意图拆解/比价均使用最新价格
+    AgentAPI.loadData(dbProducts, cpRes.coupons || []);
+    renderPriceManager();
+    if (!silent) flashDbBadge('已刷新');
+  } catch (e) {
+    if (!silent) alert('刷新失败: ' + e.message);
+  }
+}
+
+function flashDbBadge(text) {
+  const badge = document.getElementById('dbBadge');
+  const orig = badge.textContent;
+  badge.textContent = '✓ ' + text;
+  setTimeout(() => { badge.textContent = orig; }, 1500);
 }
 
 function fillScene(text) {
@@ -281,6 +342,94 @@ async function authorize() {
   renderBundle(data);
   renderTrace(data.toolTrace || []);
   renderAction(data);
+}
+
+// ============ 价格管理面板(本地数据库) ============
+function renderPriceManager() {
+  const el = document.getElementById('priceBody');
+  const filter = document.getElementById('priceCatFilter');
+  // 品类筛选下拉(保留当前选中)
+  const cats = [...new Set(dbProducts.map(p => p.category))];
+  const curCat = filter.value;
+  filter.innerHTML = '<option value="">全部品类</option>' +
+    cats.map(c => `<option value="${esc(c)}"${c === curCat ? ' selected' : ''}>${esc(c)}</option>`).join('');
+
+  let list = dbProducts;
+  if (curCat) list = list.filter(p => p.category === curCat);
+  if (!list.length) { el.innerHTML = '<p class="hint">暂无商品数据</p>'; return; }
+
+  el.innerHTML = list.map(p => `
+    <div class="price-row" id="prow-${esc(p.id)}">
+      <div class="price-info">
+        <span class="price-name" title="${esc(p.name)}">${esc(p.name)}</span>
+        <span class="price-meta">${esc(p.category)} · 当前 ¥${p.price} · 史低 ¥${p.historicalLow ?? '-'}</span>
+      </div>
+      <div class="price-edit">
+        <input type="number" class="price-input" id="pin-${esc(p.id)}" value="${p.price}" min="0" step="1" />
+        <button class="btn primary sm" onclick="savePrice('${esc(p.id)}')">保存</button>
+        <button class="btn ghost sm" onclick="toggleHistory('${esc(p.id)}')" title="价格变更历史">史</button>
+      </div>
+      <div class="price-history hidden" id="phist-${esc(p.id)}"></div>
+    </div>`).join('');
+}
+
+async function savePrice(productId) {
+  const input = document.getElementById('pin-' + productId);
+  const newPrice = parseFloat(input.value);
+  if (isNaN(newPrice) || newPrice < 0) { alert('请输入有效价格'); return; }
+
+  if (dbOnline) {
+    try {
+      const res = await dbFetch('/api/products/' + productId, { method: 'PUT', body: { price: newPrice } });
+      if (res.ok) {
+        AgentAPI.updateProduct(productId, { price: newPrice });
+        const p = dbProducts.find(x => x.id === productId);
+        if (p) { p.price = newPrice; if (newPrice < (p.historicalLow ?? Infinity)) p.historicalLow = newPrice; p.updatedAt = res.product.updatedAt; }
+        renderPriceManager();
+        flashDbBadge('价格已保存');
+      }
+    } catch (e) { alert('保存失败: ' + e.message); }
+  } else {
+    // 离线模式:仅更新浏览器内存(刷新后失效)
+    const res = AgentAPI.updateProduct(productId, { price: newPrice });
+    if (res.ok) {
+      const p = dbProducts.find(x => x.id === productId);
+      if (p) { p.price = newPrice; p.historicalLow = res.product.historicalLow; }
+      renderPriceManager();
+      flashDbBadge('已更新(离线,刷新失效)');
+    }
+  }
+}
+
+async function toggleHistory(productId) {
+  const histEl = document.getElementById('phist-' + productId);
+  if (!histEl.classList.contains('hidden')) { histEl.classList.add('hidden'); return; }
+
+  if (!dbOnline) {
+    histEl.innerHTML = '<p class="hint">离线模式无法查看历史,请启动本地服务器(node server.js)</p>';
+    histEl.classList.remove('hidden');
+    return;
+  }
+  try {
+    const res = await dbFetch('/api/price-history/' + productId);
+    const h = res.history || [];
+    histEl.innerHTML = h.length
+      ? h.map(r => `<div class="hist-item"><span class="hist-time">${esc(r.changed_at)}</span><span class="hist-prices">¥${r.old_price ?? '-'} → ¥${r.new_price}</span><span class="hist-note">${esc(r.note || '')}</span></div>`).join('')
+      : '<p class="hint">暂无价格变更记录</p>';
+  } catch (e) {
+    histEl.innerHTML = '<p class="hint">加载失败: ' + esc(e.message) + '</p>';
+  }
+  histEl.classList.remove('hidden');
+}
+
+async function resetDbData() {
+  if (!dbOnline) { alert('离线模式,数据已为内置默认值'); return; }
+  if (!confirm('确认将所有商品/优惠券重置为初始数据?价格历史将清空。')) return;
+  try {
+    await dbFetch('/api/reset', { method: 'POST' });
+    await refreshDbData(true);
+    flashDbBadge('已重置为初始数据');
+  } catch (e) { alert('重置失败: ' + e.message); }
 }
 
 init();

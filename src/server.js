@@ -17,6 +17,8 @@ const { buildTaskGraph } = require('./commander/task-graph');
 const { declareBoundary } = require('./commander/authorization');
 const { executeTaskGraph } = require('./orchestrator/router');
 const { MemoryStore } = require('./memory/memory-store');
+const db = require('./data/db');
+const catalog = require('./data/catalog');
 
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = '0.0.0.0';
@@ -54,6 +56,14 @@ function parseJsonBody(raw) {
   }
   return obj;
 }
+
+// ---------- 数据库初始化与内存同步 ----------
+// 启动时将 SQLite 数据加载到 catalog 内存,agent 执行链(tools.js)自动使用最新数据
+function syncFromDb() {
+  catalog.loadData(db.getAllProducts(), db.getCoupons());
+}
+db.seedIfEmpty();
+syncFromDb();
 
 // ---------- 业务流程 ----------
 function runPlanning(text, userId) {
@@ -99,7 +109,7 @@ async function handleRequest(req, res) {
   if (method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type'
     });
     res.end();
@@ -107,8 +117,63 @@ async function handleRequest(req, res) {
   }
 
   // 健康检查
-  if (path === '/health') {
-    sendJson(res, 200, { status: 'ok', service: 'consumer-agent', time: new Date().toISOString() });
+  if (path === '/health' || path === '/api/health') {
+    sendJson(res, 200, {
+      status: 'ok', service: 'consumer-agent',
+      time: new Date().toISOString(),
+      stats: db.dbStats()
+    });
+    return;
+  }
+
+  // ---------- 数据管理 API(与 public/server.js 对应) ----------
+  // GET /api/products[?scene=xxx&category=xxx]
+  if (path === '/api/products' && method === 'GET') {
+    let list = db.getAllProducts();
+    const scene = url.searchParams.get('scene');
+    const category = url.searchParams.get('category');
+    if (scene) list = list.filter(p => p.scene === scene);
+    if (category) list = list.filter(p => p.category === category);
+    sendJson(res, 200, { products: list, count: list.length });
+    return;
+  }
+
+  // GET /api/products/:id
+  const mGetOne = method === 'GET' && path.match(/^\/api\/products\/([\w-]+)$/);
+  if (mGetOne) {
+    const p = db.getProductById(mGetOne[1]);
+    return p ? sendJson(res, 200, p) : sendJson(res, 404, { error: '商品不存在' });
+  }
+
+  // PUT /api/products/:id ← 核心调价接口(同步DB+内存)
+  const mPut = method === 'PUT' && path.match(/^\/api\/products\/([\w-]+)$/);
+  if (mPut) {
+    const body = parseJsonBody(await readBody(req));
+    const updated = db.updateProduct(mPut[1], body);
+    if (!updated) return sendJson(res, 404, { error: '商品不存在' });
+    // 同步到 catalog 内存,agent 执行链立即生效
+    catalog.updateProduct(mPut[1], { price: updated.price, historicalLow: updated.historicalLow, name: updated.name, rating: updated.rating, reviews: updated.reviews });
+    return sendJson(res, 200, { ok: true, product: updated });
+  }
+
+  // GET /api/price-history/:productId
+  const mHist = method === 'GET' && path.match(/^\/api\/price-history\/([\w-]+)$/);
+  if (mHist) {
+    sendJson(res, 200, { productId: mHist[1], history: db.getPriceHistory(mHist[1]) });
+    return;
+  }
+
+  // GET /api/coupons
+  if (path === '/api/coupons' && method === 'GET') {
+    sendJson(res, 200, { coupons: db.getCoupons() });
+    return;
+  }
+
+  // POST /api/reset ← 重置为初始数据
+  if (path === '/api/reset' && method === 'POST') {
+    const result = db.resetData();
+    syncFromDb(); // 重置后重新同步内存
+    sendJson(res, 200, { ok: true, ...result });
     return;
   }
 
@@ -183,6 +248,11 @@ async function handleRequest(req, res) {
 <li><code>POST /api/plan</code> — 意图解析 + 任务图规划(不执行)</li>
 <li><code>POST /api/execute</code> — 全流程执行(检索→比价→时效→组合→下单)</li>
 <li><code>GET  /api/memory/:userId</code> — 用户记忆与历史经历洞察</li>
+<li><code>GET  /api/products</code> — 商品列表(支持 ?scene=&category= 筛选)</li>
+<li><code>PUT  /api/products/:id</code> — 更新商品价格(自动记录历史+刷新史低)</li>
+<li><code>GET  /api/price-history/:productId</code> — 价格变更历史</li>
+<li><code>GET  /api/coupons</code> — 优惠券列表</li>
+<li><code>POST /api/reset</code> — 重置为初始数据</li>
 </ul>
 <h2>快速体验</h2>
 <pre>curl -X POST /api/execute -H "Content-Type: application/json" \\
@@ -205,5 +275,12 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`[consumer-agent] 服务已启动: http://${HOST}:${PORT}`);
+  console.log('====================================================');
+  console.log('  消费智能体 · 模块化后端已启动');
+  console.log(`  服务地址:  http://${HOST}:${PORT}`);
+  console.log(`  SQLite:    ${db.DB_PATH}`);
+  console.log(`  数据统计:  ${JSON.stringify(db.dbStats())}`);
+  console.log('  Agent API: /api/plan /api/execute /api/memory/:id');
+  console.log('  数据 API:  /api/products /api/coupons /api/reset');
+  console.log('====================================================');
 });
